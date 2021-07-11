@@ -1,0 +1,50 @@
+# This is an example .goreleaser.yml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+archives:
+  - wrap_in_directory: true
+    format: binary
+    files:
+      - none*
+    replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
+#  format_overrides:
+#    - goos: windows
+#      format: zip
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+checksum:
+  name_template: 'checksums.txt'
+dockers:
+  - image_templates:
+      - "quay.io/opdev/oplmgr:{{ .Tag }}"
+project_name: oplmgr
+release:
+  github:
+    owner: redhat-openshift-partner-labs
+    name: oplmgr
+  draft: true
+snapshot:
+  name_template: "{{ .Tag }}-next"
+source:
+  enabled: true
