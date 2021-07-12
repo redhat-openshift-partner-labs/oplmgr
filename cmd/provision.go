@@ -337,11 +337,11 @@ func (o *Options) Validate(cmd *cobra.Command) error {
 	if o.Cloud == cloudOpenStack {
 		if o.OpenStackAPIFloatingIP == "" {
 			o.log.Info("Missing openstack-api-floating-ip parameter")
-			return fmt.Errorf("Missing openstack-api-floating-ip parameter")
+			return fmt.Errorf("missing openstack-api-floating-ip parameter")
 		}
 		if o.OpenStackCloud == "" {
 			o.log.Info("Missing openstack-cloud parameter")
-			return fmt.Errorf("Missing openstack-cloud parameter")
+			return fmt.Errorf("missing openstack-cloud parameter")
 		}
 	}
 
@@ -592,12 +592,12 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 	case cloudVSphere:
 		vsphereUsername := os.Getenv(VSphereUsernameEnvVar)
 		if vsphereUsername == "" {
-			return nil, fmt.Errorf("No %s env var set, cannot proceed", VSphereUsernameEnvVar)
+			return nil, fmt.Errorf("no %s env var set, cannot proceed", VSphereUsernameEnvVar)
 		}
 
 		vspherePassword := os.Getenv(VSpherePasswordEnvVar)
 		if vspherePassword == "" {
-			return nil, fmt.Errorf("No %s env var set, cannot proceed", VSpherePasswordEnvVar)
+			return nil, fmt.Errorf("no %s env var set, cannot proceed", VSpherePasswordEnvVar)
 		}
 
 		vsphereCACerts := os.Getenv(VSphereTLSCACertsEnvVar)
@@ -607,7 +607,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		if vsphereCACerts == "" {
 			return nil, fmt.Errorf("must provide --vsphere-ca-certs or set %s env var set", VSphereTLSCACertsEnvVar)
 		}
-		caCerts := [][]byte{}
+		var caCerts [][]byte
 		for _, cert := range filepath.SplitList(vsphereCACerts) {
 			caCert, err := ioutil.ReadFile(cert)
 			if err != nil {
@@ -667,7 +667,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		if o.OvirtCACerts == "" {
 			return nil, errors.New("must provide --ovirt-ca-certs")
 		}
-		caCerts := [][]byte{}
+		var caCerts [][]byte
 		for _, cert := range filepath.SplitList(o.OvirtCACerts) {
 			caCert, err := ioutil.ReadFile(cert)
 			if err != nil {
