@@ -58,7 +58,9 @@ var wakeCmd = &cobra.Command{
 
 		cdo.Spec.PowerState = "Running"
 
-		client.Update(context.Background(), cdo)
+		if err = client.Update(context.Background(), cdo); err != nil {
+			log.Printf("Unable to update cluster deployment powerState: %v\n", err)
+		}
 	},
 }
 
