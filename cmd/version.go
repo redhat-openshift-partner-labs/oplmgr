@@ -28,7 +28,7 @@ var versionCmd = &cobra.Command{
 	Short: "Version of oplmgr",
 	Long: `Version of oplmgr`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("oplmgr v0.1.0")
+		fmt.Println("oplmgr v0.1.1-alpha")
 	},
 }
 
