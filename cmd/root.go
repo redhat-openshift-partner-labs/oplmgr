@@ -34,15 +34,15 @@ var Company string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "oplmgr SUB-COMMAND",
-	Short: "Used primarily by pg_timetable.",
+	Short: "Manage OpenShift Partner Lab components.",
 	Long: `Program to manipulate provisioning, sleep, wake, and deletion of clusters
 created using OpenShift Partner Labs. You will need the cluster_id and timezone
 to successfully use this application:
 
-oplmgr provision --cluster-id 177933cc-e47a-42fc-9ad9-f6efbb27f44a
-oplmgr delete --cluster-id 177933cc-e47a-42fc-9ad9-f6efbb27f44a
-oplmgr sleep --cluster-id 177933cc-e47a-42fc-9ad9-f6efbb27f44a
-oplmgr wake --cluster-id 177933cc-e47a-42fc-9ad9-f6efbb27f44a
+oplmgr provision --clusterid 177933cc-e47a-42fc-9ad9-f6efbb27f44a
+oplmgr delete --clusterid 177933cc-e47a-42fc-9ad9-f6efbb27f44a
+oplmgr sleep --clusterid 177933cc-e47a-42fc-9ad9-f6efbb27f44a
+oplmgr wake --clusterid 177933cc-e47a-42fc-9ad9-f6efbb27f44a
 
 Provisioning happens at 7am of the timezone provided. Here are the timezones we set:
 
@@ -69,6 +69,7 @@ func Execute() {
 }
 
 func init() {
+	perflags := rootCmd.PersistentFlags()
 	//cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
@@ -76,15 +77,15 @@ func init() {
 	// will be global for your application.
 
 	//rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.oplmgr.yaml)")
-	rootCmd.PersistentFlags().StringVar(&ClusterId, "cluster-id", "", "id of cluster to interact with")
-	rootCmd.PersistentFlags().StringVar(&Namespace, "namespace", "hive", "namespace to interact with")
-	rootCmd.PersistentFlags().StringVar(&Company, "company", "opl", "company name provided by request form")
+	perflags.StringVar(&ClusterId, "clusterid", "", "id of cluster to interact with")
+	perflags.StringVar(&Namespace, "namespace", "hive", "namespace to interact with")
+	perflags.StringVar(&Company, "company", "redhat", "company name provided by request form")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	//rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	rootCmd.MarkPersistentFlagRequired("cluster-id")
+	//rootCmd.MarkPersistentFlagRequired("cluster-id")
 }
 
 // initConfig reads in config file and ENV variables if set.
