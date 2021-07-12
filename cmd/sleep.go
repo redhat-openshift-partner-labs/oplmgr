@@ -57,7 +57,7 @@ var sleepCmd = &cobra.Command{
 		cdo.Spec.PowerState = "Hibernating"
 
 		if err = client.Update(context.Background(), cdo); err != nil {
-			log.Printf("Unable to update cluster powerState: %v\n", err)
+			log.Printf("Unable to update cluster deployment powerState: %v\n", err)
 		}
 	},
 }
