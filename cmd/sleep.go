@@ -31,14 +31,14 @@ var sleepCmd = &cobra.Command{
 	Short: "Set powerState of Hive ClusterDeployment to Hibernating",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		clusterid, err := cmd.Flags().GetString("cluster-id")
+		clusterid, err := cmd.Flags().GetString("clusterid")
 		if err != nil {
-			log.Printf("Unable to get cluster-id: %v\n", err)
+			log.Printf("Unable to get clusterid: %v\n", err)
 		}
 
 		namespace, err := cmd.Flags().GetString("namespace")
 		if err != nil {
-			log.Printf("Unable to get cluster-id: %v\n", err)
+			log.Printf("Unable to get clusterid: %v\n", err)
 		}
 
 		client := HiveClientK8sAuthenticate()
@@ -50,14 +50,15 @@ var sleepCmd = &cobra.Command{
 			Name:      clusterid,
 		}
 
-		err = client.Get(context.TODO(), cdt, cdo)
-		if err != nil {
+		if err = client.Get(context.TODO(), cdt, cdo); err != nil {
 			log.Printf("Unable to get cluster deployment: %v\n", err)
 		}
 
 		cdo.Spec.PowerState = "Hibernating"
 
-		client.Update(context.Background(), cdo)
+		if err = client.Update(context.Background(), cdo); err != nil {
+			log.Printf("Unable to update cluster powerState: %v\n", err)
+		}
 	},
 }
 
