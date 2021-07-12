@@ -270,9 +270,9 @@ OpenShift Installer publishes all the services of the cluster like API server an
 
 // Complete finishes parsing arguments for the command
 func (o *Options) Complete(cmd *cobra.Command, args []string) error {
-	uuid, err := cmd.Flags().GetString("cluster-id")
+	uuid, err := cmd.Flags().GetString("clusterid")
 	if err != nil {
-		log.Printf("Unable to get the cluster-id: %v\n", err)
+		log.Printf("Unable to get the clusterid: %v\n", err)
 	}
 
 	company, err := cmd.Flags().GetString("company")

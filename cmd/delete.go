@@ -33,9 +33,9 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete an existing Hive ClusterDeployment",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		clusterid, err := cmd.Flags().GetString("cluster-id")
+		clusterid, err := cmd.Flags().GetString("clusterid")
 		if err != nil {
-			log.Printf("Unable to get cluster-id: %v\n", err)
+			log.Printf("Unable to get clusterid: %v\n", err)
 		}
 
 		namespace, err := cmd.Flags().GetString("namespace")
