@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -36,27 +36,108 @@ import (
 	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/redhat-openshift-partner-labs/oplmgr/clusterresource"
-	. "github.com/redhat-openshift-partner-labs/oplmgr/internal"
-	. "github.com/redhat-openshift-partner-labs/oplmgr/utils"
-
+	"github.com/openshift/hive/apis"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
-	//"github.com/openshift/hive/contrib/pkg/utils"
-	//awsutils "github.com/openshift/hive/contrib/pkg/utils/aws"
-	//azurecredutil "github.com/openshift/hive/contrib/pkg/utils/azure"
-	//gcputils "github.com/openshift/hive/contrib/pkg/utils/gcp"
-	//openstackutils "github.com/openshift/hive/contrib/pkg/utils/openstack"
-	//ovirtutils "github.com/openshift/hive/contrib/pkg/utils/ovirt"
+	"github.com/openshift/hive/contrib/pkg/utils"
+	awsutils "github.com/openshift/hive/contrib/pkg/utils/aws"
+	azurecredutil "github.com/openshift/hive/contrib/pkg/utils/azure"
+	gcputils "github.com/openshift/hive/contrib/pkg/utils/gcp"
+	openstackutils "github.com/openshift/hive/contrib/pkg/utils/openstack"
+	ovirtutils "github.com/openshift/hive/contrib/pkg/utils/ovirt"
+	"github.com/openshift/hive/pkg/clusterresource"
+	"github.com/openshift/hive/pkg/constants"
+	"github.com/openshift/hive/pkg/gcpclient"
+	"github.com/openshift/installer/pkg/validate"
+
+	. "github.com/redhat-openshift-partner-labs/oplmgr/internal"
+)
+
+const longDesc = `
+OVERVIEW
+The provision command generates and applies the artifacts needed
+to create a new Hive cluster deployment. By default, the clusterdeployment is
+generated along with corresponding secrets and then applied to the current
+cluster. If you don't need secrets generated, specify --include-secrets=false
+in the command line. If you don't want to apply the cluster deployment and
+only output it locally, specify the output flag (-o json) or (-o yaml) to
+specify your output format.
+
+IMAGES
+An existing ClusterImageSet can be specified with the --image-set
+flag. Otherwise, one will be generated using the images specified for the
+cluster deployment. If you don't wish to use a ClusterImageSet, specify
+--use-image-set=false. This will result in images only specified on the
+cluster itself.
+
+
+ENVIRONMENT VARIABLES
+The command will use the following environment variables for its output:
+
+PUBLIC_SSH_KEY - If present, it is used as the new cluster's public SSH key.
+It overrides the public ssh key flags. If not, --ssh-public-key will be used.
+If that is not specified, then --ssh-public-key-file is used.
+That file's default value is %[1]s.
+
+PULL_SECRET - If present, it is used as the cluster deployment's pull
+secret and will override the --pull-secret flag. If not present, and
+the --pull-secret flag is not specified, then the --pull-secret-file is
+used. That file's default value is %[2]s.
+
+AWS_SECRET_ACCESS_KEY and AWS_ACCESS_KEY_ID - Are used to determine your
+AWS credentials. These are only relevant for creating a cluster on AWS. If
+--creds-file is used it will take precedence over these environment
+variables.
+
+GOVC_USERNAME and GOVC_PASSWORD - Are used to determine your vSphere
+credentials.
+GOVC_TLS_CA_CERTS - Is used to provide CA certificates for communicating
+with the vSphere API.
+GOVC_NETWORK, GOVC_DATACENTER, GOVC_DATASTORE and GOVC_HOST (vCenter host)
+can be used as alternatives to the associated commandline argument.
+These are only relevant for creating a cluster on vSphere.
+
+RELEASE_IMAGE - Release image to use to install the cluster. If not specified,
+the --release-image flag is used. If that's not specified, a default image is
+obtained from a the following URL:
+https://amd64.ocp.releases.ci.openshift.org/api/v1/releasestream/4-stable/latest
+`
+const (
+	cloudAWS             = "aws"
+	cloudAzure           = "azure"
+	cloudGCP             = "gcp"
+	cloudOpenStack       = "openstack"
+	cloudVSphere         = "vsphere"
+	cloudOVirt           = "ovirt"
+	cloudIBM             = "ibm"
+
+	testFailureManifest = `apiVersion: v1
+kind: NotARealSecret
+metadata:
+  name: foo
+  namespace: bar
+type: TestFailResource
+`
+)
+
+var (
+	validClouds = map[string]bool{
+		cloudAWS:       true,
+		cloudAzure:     true,
+		cloudGCP:       true,
+		cloudOpenStack: true,
+		cloudVSphere:   true,
+		cloudOVirt:     true,
+		cloudIBM:       false,
+	}
 )
 
 // Options is the set of options to generate and apply a new cluster deployment
 type Options struct {
 	Name                              string
 	Namespace                         string
-	SSHPublicKeyFile                  string
-	SSHPublicKey                      string
-	SSHPrivateKeyFile                 string
-	SSHPrivateKey                     string
+	//SSHPublicKeyFile                  string
+	//SSHPublicKey                      string
+	//SSHPrivateKeyFile                 string
 	BaseDomain                        string
 	PullSecret                        string
 	PullSecretFile                    string
@@ -135,63 +216,76 @@ type Options struct {
 	log     log.FieldLogger
 }
 
-var opt Options
+// provisionCmd represents the provision command
+//var provisionCmd = &cobra.Command{
+//	Use:   "provision",
+//	Short: "A brief description of your command",
+//	Long: `A longer description that spans multiple lines and likely contains examples
+//and usage of using your command. For example:
+//
+//Cobra is a CLI library for Go that empowers applications.
+//This application is a tool to generate the needed files
+//to quickly create a Cobra application.`,
+//	Run: func(cmd *cobra.Command, args []string) {
+//		fmt.Println("provision called")
+//	},
+//}
 
-const (
-	cloudAWS             = "aws"
-	cloudAzure           = "azure"
-	cloudGCP             = "gcp"
-	cloudOpenStack       = "openstack"
-	cloudVSphere         = "vsphere"
-	cloudOVirt           = "ovirt"
-	cloudIBM             = "ibm"
-)
+// NewCreateClusterCommand creates a command that generates and applies cluster deployment artifacts.
+func NewCreateClusterCommand() *cobra.Command {
+	opt := &Options{log: log.WithField("command", "provision")}
 
-var (
-	validClouds = map[string]bool{
-		cloudAWS:       true,
-		cloudAzure:     true,
-		cloudGCP:       true,
-		cloudOpenStack: true,
-		cloudVSphere:   true,
-		cloudOVirt:     true,
-		cloudIBM:       false,
+	opt.homeDir = "."
+
+	if u, err := user.Current(); err == nil {
+		opt.homeDir = u.HomeDir
 	}
-)
+	defaultSSHPublicKeyFile := filepath.Join(opt.homeDir, ".ssh", "id_rsa.pub")
 
-var provisionCmd = &cobra.Command{
-	Use:   "provision",
-	Short: "Create a Hive ClusterDeployment",
-	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := opt.Complete(cmd, args); err != nil {
-			opt.log.WithError(err).Fatal("Error")
-		}
+	defaultPullSecretFile := filepath.Join(opt.homeDir, ".pull-secret")
+	if _, err := os.Stat(defaultPullSecretFile); os.IsNotExist(err) {
+		defaultPullSecretFile = ""
+	} else if err != nil {
+		opt.log.WithError(err).Errorf("%v can not be used", defaultPullSecretFile)
+	}
 
-		if err := opt.Validate(cmd); err != nil {
-			opt.log.WithError(err).Fatal("Error")
-		}
+	cmd := &cobra.Command{
+		Use: `provision CLUSTER_DEPLOYMENT_NAME
+provision CLUSTER_DEPLOYMENT_NAME --cloud=aws
+provision CLUSTER_DEPLOYMENT_NAME --cloud=azure --azure-base-domain-resource-group-name=RESOURCE_GROUP_NAME
+provision CLUSTER_DEPLOYMENT_NAME --cloud=gcp
+provision CLUSTER_DEPLOYMENT_NAME --cloud=openstack --openstack-api-floating-ip=192.168.1.2 --openstack-cloud=mycloud
+provision CLUSTER_DEPLOYMENT_NAME --cloud=vsphere --vsphere-vcenter=vmware.devcluster.com --vsphere-datacenter=dc1 --vsphere-default-datastore=nvme-ds1 --vsphere-api-vip=192.168.1.2 --vsphere-ingress-vip=192.168.1.3 --vsphere-cluster=devel --vsphere-network="VM Network" --vsphere-ca-certs=/path/to/cert
+provision CLUSTER_DEPLOYMENT_NAME --cloud=ovirt --ovirt-api-vip 192.168.1.2 --ovirt-dns-vip 192.168.1.3 --ovirt-ingress-vip 192.168.1.4 --ovirt-network-name ovirtmgmt --ovirt-storage-domain-id 00000000-e77a-456b-uuid --ovirt-cluster-id 00000000-8675-11ea-uuid --ovirt-ca-certs ~/.ovirt/ca`,
+		Short: "Create a Hive ClusterDeployment",
+		Long:  fmt.Sprintf(longDesc, defaultSSHPublicKeyFile, defaultPullSecretFile),
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			log.SetLevel(log.InfoLevel)
+			if err := opt.Complete(cmd, args); err != nil {
+				opt.log.WithError(err).Fatal("Error")
+			}
+			if err := opt.Validate(cmd); err != nil {
+				opt.log.WithError(err).Fatal("Error")
+			}
+			err := opt.Run()
+			if err != nil {
+				opt.log.WithError(err).Fatal("Error")
+			}
+		},
+	}
 
-		if err := opt.Run(); err != nil {
-			opt.log.WithError(err).Fatal("Error")
-		}
-	},
-}
-
-func init() {
-	flags := provisionCmd.Flags()
-
-	flags.StringVar(&opt.Cloud, "cloud", cloudAWS, "Cloud provider: aws|azure|gcp|openstack|ibm (currently ibm is unavailable)")
-	flags.StringVarP(&opt.Namespace, "namespace", "n", "hive", "Namespace to create cluster deployment in")
-	//flags.StringVar(&opt.SSHPrivateKeyFile, "ssh-private-key-file", "defaultSSHPrivateKeyFile", "file name of SSH private key for cluster")
-	//flags.StringVar(&opt.SSHPrivateKey, "ssh-private-key", "", "SSH private key for cluster")
+	flags := cmd.Flags()
+	flags.StringVar(&opt.Cloud, "cloud", cloudAWS, "Cloud provider: aws|azure|gcp|openstack")
+	flags.StringVarP(&opt.Namespace, "namespace", "n", "", "Namespace to create cluster deployment in")
+	//flags.StringVar(&opt.SSHPrivateKeyFile, "ssh-private-key-file", "", "file name containing private key contents")
 	//flags.StringVar(&opt.SSHPublicKeyFile, "ssh-public-key-file", defaultSSHPublicKeyFile, "file name of SSH public key for cluster")
 	//flags.StringVar(&opt.SSHPublicKey, "ssh-public-key", "", "SSH public key for cluster")
-	flags.StringVar(&opt.BaseDomain, "base-domain", "partner-lab.rhecoeng.com", "Base domain for the cluster")
+	flags.StringVar(&opt.BaseDomain, "base-domain", "new-installer.openshift.com", "Base domain for the cluster")
 	flags.StringVar(&opt.PullSecret, "pull-secret", "", "Pull secret for cluster. Takes precedence over pull-secret-file.")
 	flags.StringVar(&opt.DeleteAfter, "delete-after", "", "Delete this cluster after the given duration. (e.g. 8h)")
 	flags.StringVar(&opt.HibernateAfter, "hibernate-after", "", "Automatically hibernate the cluster whenever it has been running for the given duration")
-	//flags.StringVar(&opt.PullSecretFile, "pull-secret-file", defaultPullSecretFile, "file name of pull secret for cluster")
+	flags.StringVar(&opt.PullSecretFile, "pull-secret-file", defaultPullSecretFile, "Pull secret file for cluster")
 	flags.StringVar(&opt.BoundServiceAccountSigningKeyFile, "bound-service-account-signing-key-file", "", "Private service account signing key (often created with ccoutil create key-pair)")
 	flags.BoolVar(&opt.CredentialsModeManual, "credentials-mode-manual", false, "Configure the Cloud Credential Operator in the target cluster to Manual mode. Implies the use of --manifests-dir to inject custom Secrets for all CredentialsRequests in the cluster.")
 
@@ -207,9 +301,9 @@ func init() {
 	flags.BoolVar(&opt.IncludeSecrets, "include-secrets", true, "Include secrets along with ClusterDeployment")
 	flags.BoolVar(&opt.InstallOnce, "install-once", false, "Run the install only one time and fail if not successful")
 	flags.BoolVar(&opt.UninstallOnce, "uninstall-once", false, "Run the uninstall only one time and fail if not successful")
-	//flags.BoolVar(&opt.SimulateBootstrapFailure, "simulate-bootstrap-failure", false, "Simulate an install bootstrap failure by injecting an invalid manifest.")
+	flags.BoolVar(&opt.SimulateBootstrapFailure, "simulate-bootstrap-failure", false, "Simulate an install bootstrap failure by injecting an invalid manifest.")
 	flags.Int64Var(&opt.WorkerNodesCount, "workers", 3, "Number of worker nodes to create.")
-	//flags.BoolVar(&opt.CreateSampleSyncsets, "create-sample-syncsets", false, "Create a set of sample syncsets for testing")
+	flags.BoolVar(&opt.CreateSampleSyncsets, "create-sample-syncsets", false, "Create a set of sample syncsets for testing")
 	flags.StringVar(&opt.ManifestsDir, "manifests", "", "Directory containing manifests to add during installation")
 	flags.StringVar(&opt.MachineNetwork, "machine-network", "10.0.0.0/16", "Cluster's MachineNetwork to pass to the installer")
 	flags.StringVar(&opt.Region, "region", "", "Region to which to install the cluster. This is only relevant to AWS, Azure, and GCP.")
@@ -265,31 +359,17 @@ OpenShift Installer publishes all the services of the cluster like API server an
 	// Additional CA Trust Bundle
 	flags.StringVar(&opt.AdditionalTrustBundle, "additional-trust-bundle", "", "Path to a CA Trust Bundle which will be added to the nodes trusted certificate store.")
 
-	rootCmd.AddCommand(provisionCmd)
+	return cmd
 }
 
 // Complete finishes parsing arguments for the command
 func (o *Options) Complete(cmd *cobra.Command, args []string) error {
-	uuid, err := cmd.Flags().GetString("clusterid")
-	if err != nil {
-		log.Printf("Unable to get the clusterid: %v\n", err)
-	}
-
-	company, err := cmd.Flags().GetString("company")
-	if err != nil {
-		log.Printf("Unable to get the company: %v\n", err)
-	}
-
-	re := regexp.MustCompile(`[^a-zA-Z0-9-]`)
-	company = re.ReplaceAllString(company, "")
-	company = strings.TrimSpace(strings.ToLower(company))
-
-	o.Name = strings.Split(uuid, "-")[0] + "-" + company
+	o.Name = args[0]
 
 	if o.Region == "" {
 		switch o.Cloud {
 		case cloudAWS:
-			o.Region = "us-west-2"
+			o.Region = "us-east-1"
 		case cloudAzure:
 			o.Region = "centralus"
 		case cloudGCP:
@@ -304,10 +384,6 @@ func (o *Options) Complete(cmd *cobra.Command, args []string) error {
 		}
 		o.HibernateAfterDur = &dur
 	}
-
-	publickey, privatekey := GenerateSSHKeys()
-	o.SSHPublicKey = string(publickey)
-	o.SSHPrivateKey = string(privatekey)
 
 	return nil
 }
@@ -337,11 +413,11 @@ func (o *Options) Validate(cmd *cobra.Command) error {
 	if o.Cloud == cloudOpenStack {
 		if o.OpenStackAPIFloatingIP == "" {
 			o.log.Info("Missing openstack-api-floating-ip parameter")
-			return fmt.Errorf("missing openstack-api-floating-ip parameter")
+			return fmt.Errorf("Missing openstack-api-floating-ip parameter")
 		}
 		if o.OpenStackCloud == "" {
 			o.log.Info("Missing openstack-cloud parameter")
-			return fmt.Errorf("missing openstack-cloud parameter")
+			return fmt.Errorf("Missing openstack-cloud parameter")
 		}
 	}
 
@@ -399,7 +475,7 @@ func (o *Options) Validate(cmd *cobra.Command) error {
 
 // Run executes the command
 func (o *Options) Run() error {
-	if err := hivev1.AddToScheme(scheme.Scheme); err != nil {
+	if err := apis.AddToScheme(scheme.Scheme); err != nil {
 		return err
 	}
 
@@ -417,12 +493,12 @@ func (o *Options) Run() error {
 		printObjects(objs, scheme.Scheme, printer)
 		return err
 	}
-	rh, err := GetResourceHelper(o.log)
+	rh, err := utils.GetResourceHelper(o.log)
 	if err != nil {
 		return err
 	}
 	if len(o.Namespace) == 0 {
-		o.Namespace, err = DefaultNamespace()
+		o.Namespace, err = utils.DefaultNamespace()
 		if err != nil {
 			o.log.Error("Cannot determine default namespace")
 			return err
@@ -446,17 +522,16 @@ func (o *Options) Run() error {
 // GenerateObjects generates resources for a new cluster deployment
 func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 
-	pullSecret, err := GetPullSecret(o.log, o.PullSecret, o.PullSecretFile)
+	pullSecret, err := utils.GetPullSecret(o.log, o.PullSecret, o.PullSecretFile)
 	if err != nil {
 		return nil, err
 	}
 
-	sshPrivateKey, err := o.getSSHPrivateKey()
-	if err != nil {
-		return nil, err
-	}
+	publickey, privatekey := GenerateSSHKeys()
+	sshPublicKey := string(publickey)
+	sshPrivateKey := string(privatekey)
 
-	sshPublicKey, err := o.getSSHPublicKey()
+	additionalTrustBundle, err := o.getAdditionalTrustBundle()
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +542,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		return nil, err
 	}
 
-	labels := make(map[string]string)
+	labels := map[string]string{}
 
 	for _, ls := range o.Labels {
 		tokens := strings.Split(ls, "=")
@@ -497,6 +572,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		InstallerManifests:       manifestFileData,
 		MachineNetwork:           o.MachineNetwork,
 		SkipMachinePools:         o.SkipMachinePools,
+		AdditionalTrustBundle:    additionalTrustBundle,
 		CentralMachineManagement: o.CentralMachineManagement,
 	}
 	if o.Adopt {
@@ -522,7 +598,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 	switch o.Cloud {
 	case cloudAWS:
 		defaultCredsFilePath := filepath.Join(o.homeDir, ".aws", "credentials")
-		accessKeyID, secretAccessKey, err := GetAWSCreds(o.CredsFile, defaultCredsFilePath)
+		accessKeyID, secretAccessKey, err := awsutils.GetAWSCreds(o.CredsFile, defaultCredsFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -546,7 +622,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		}
 		builder.CloudBuilder = awsProvider
 	case cloudAzure:
-		creds, err := GetAzureCreds(o.CredsFile)
+		creds, err := azurecredutil.GetCreds(o.CredsFile)
 		if err != nil {
 			o.log.WithError(err).Error("Failed to read in Azure credentials")
 			return nil, err
@@ -559,11 +635,11 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		}
 		builder.CloudBuilder = azureProvider
 	case cloudGCP:
-		creds, err := GetGCPCreds(o.CredsFile)
+		creds, err := gcputils.GetCreds(o.CredsFile)
 		if err != nil {
 			return nil, err
 		}
-		projectID, err := ProjectID(creds)
+		projectID, err := gcpclient.ProjectID(creds)
 		if err != nil {
 			return nil, err
 		}
@@ -575,7 +651,7 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		}
 		builder.CloudBuilder = gcpProvider
 	case cloudOpenStack:
-		cloudsYAMLContent, err := GetOpenStackCreds(o.CredsFile)
+		cloudsYAMLContent, err := openstackutils.GetCreds(o.CredsFile)
 		if err != nil {
 			return nil, err
 		}
@@ -590,24 +666,24 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		}
 		builder.CloudBuilder = openStackProvider
 	case cloudVSphere:
-		vsphereUsername := os.Getenv(VSphereUsernameEnvVar)
+		vsphereUsername := os.Getenv(constants.VSphereUsernameEnvVar)
 		if vsphereUsername == "" {
-			return nil, fmt.Errorf("no %s env var set, cannot proceed", VSphereUsernameEnvVar)
+			return nil, fmt.Errorf("No %s env var set, cannot proceed", constants.VSphereUsernameEnvVar)
 		}
 
-		vspherePassword := os.Getenv(VSpherePasswordEnvVar)
+		vspherePassword := os.Getenv(constants.VSpherePasswordEnvVar)
 		if vspherePassword == "" {
-			return nil, fmt.Errorf("no %s env var set, cannot proceed", VSpherePasswordEnvVar)
+			return nil, fmt.Errorf("No %s env var set, cannot proceed", constants.VSpherePasswordEnvVar)
 		}
 
-		vsphereCACerts := os.Getenv(VSphereTLSCACertsEnvVar)
+		vsphereCACerts := os.Getenv(constants.VSphereTLSCACertsEnvVar)
 		if o.VSphereCACerts != "" {
 			vsphereCACerts = o.VSphereCACerts
 		}
 		if vsphereCACerts == "" {
-			return nil, fmt.Errorf("must provide --vsphere-ca-certs or set %s env var set", VSphereTLSCACertsEnvVar)
+			return nil, fmt.Errorf("must provide --vsphere-ca-certs or set %s env var set", constants.VSphereTLSCACertsEnvVar)
 		}
-		var caCerts [][]byte
+		caCerts := [][]byte{}
 		for _, cert := range filepath.SplitList(vsphereCACerts) {
 			caCert, err := ioutil.ReadFile(cert)
 			if err != nil {
@@ -616,33 +692,33 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 			caCerts = append(caCerts, caCert)
 		}
 
-		vSphereNetwork := os.Getenv(VSphereNetworkEnvVar)
+		vSphereNetwork := os.Getenv(constants.VSphereNetworkEnvVar)
 		if o.VSphereNetwork != "" {
 			vSphereNetwork = o.VSphereNetwork
 		}
 
-		vSphereDatacenter := os.Getenv(VSphereDataCenterEnvVar)
+		vSphereDatacenter := os.Getenv(constants.VSphereDataCenterEnvVar)
 		if o.VSphereDatacenter != "" {
 			vSphereDatacenter = o.VSphereDatacenter
 		}
 		if vSphereDatacenter == "" {
-			return nil, fmt.Errorf("must provide --vsphere-datacenter or set %s env var", VSphereDataCenterEnvVar)
+			return nil, fmt.Errorf("must provide --vsphere-datacenter or set %s env var", constants.VSphereDataCenterEnvVar)
 		}
 
-		vSphereDatastore := os.Getenv(VSphereDataStoreEnvVar)
+		vSphereDatastore := os.Getenv(constants.VSphereDataStoreEnvVar)
 		if o.VSphereDefaultDataStore != "" {
 			vSphereDatastore = o.VSphereDefaultDataStore
 		}
 		if vSphereDatastore == "" {
-			return nil, fmt.Errorf("must provide --vsphere-default-datastore or set %s env var", VSphereDataStoreEnvVar)
+			return nil, fmt.Errorf("must provide --vsphere-default-datastore or set %s env var", constants.VSphereDataStoreEnvVar)
 		}
 
-		vSphereVCenter := os.Getenv(VSphereVCenterEnvVar)
+		vSphereVCenter := os.Getenv(constants.VSphereVCenterEnvVar)
 		if o.VSphereVCenter != "" {
 			vSphereVCenter = o.VSphereVCenter
 		}
 		if vSphereVCenter == "" {
-			return nil, fmt.Errorf("must provide --vsphere-vcenter or set %s env var", VSphereVCenterEnvVar)
+			return nil, fmt.Errorf("must provide --vsphere-vcenter or set %s env var", constants.VSphereVCenterEnvVar)
 		}
 
 		vsphereProvider := &clusterresource.VSphereCloudBuilder{
@@ -660,14 +736,14 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		}
 		builder.CloudBuilder = vsphereProvider
 	case cloudOVirt:
-		oVirtConfig, err := GetOvirtCreds(o.CredsFile)
+		oVirtConfig, err := ovirtutils.GetCreds(o.CredsFile)
 		if err != nil {
 			return nil, err
 		}
 		if o.OvirtCACerts == "" {
 			return nil, errors.New("must provide --ovirt-ca-certs")
 		}
-		var caCerts [][]byte
+		caCerts := [][]byte{}
 		for _, cert := range filepath.SplitList(o.OvirtCACerts) {
 			caCert, err := ioutil.ReadFile(cert)
 			if err != nil {
@@ -720,42 +796,64 @@ func (o *Options) GenerateObjects() ([]runtime.Object, error) {
 		result = append(result, imageSet)
 	}
 
+	if o.CreateSampleSyncsets {
+		result = append(result, o.generateSampleSyncSets()...)
+	}
+
 	return result, nil
 }
 
-func (o *Options) getSSHPublicKey() (string, error) {
-	sshPublicKey := os.Getenv("PUBLIC_SSH_KEY")
-	if len(sshPublicKey) > 0 {
-		return sshPublicKey, nil
-	}
-	if len(o.SSHPublicKey) > 0 {
-		return o.SSHPublicKey, nil
-	}
-	if len(o.SSHPublicKeyFile) > 0 {
-		data, err := ioutil.ReadFile(o.SSHPublicKeyFile)
+//func (o *Options) getSSHPublicKey() (string, error) {
+//	sshPublicKey := os.Getenv("PUBLIC_SSH_KEY")
+//	if len(sshPublicKey) > 0 {
+//		return sshPublicKey, nil
+//	}
+//	if len(o.SSHPublicKey) > 0 {
+//		return o.SSHPublicKey, nil
+//	}
+//	if len(o.SSHPublicKeyFile) > 0 {
+//		data, err := ioutil.ReadFile(o.SSHPublicKeyFile)
+//		if err != nil {
+//			o.log.Error("Cannot read SSH public key file")
+//			return "", err
+//		}
+//		sshPublicKey = strings.TrimSpace(string(data))
+//		return sshPublicKey, nil
+//	}
+//
+//	o.log.Error("Cannot determine SSH key to use")
+//	return "", nil
+//}
+//
+//func (o *Options) getSSHPrivateKey() (string, error) {
+//	if len(o.SSHPrivateKeyFile) > 0 {
+//		data, err := ioutil.ReadFile(o.SSHPrivateKeyFile)
+//		if err != nil {
+//			o.log.Error("Cannot read SSH private key file")
+//			return "", err
+//		}
+//		sshPrivateKey := strings.TrimSpace(string(data))
+//		return sshPrivateKey, nil
+//	}
+//	o.log.Debug("No private SSH key file provided")
+//	return "", nil
+//}
+
+func (o *Options) getAdditionalTrustBundle() (string, error) {
+	if len(o.AdditionalTrustBundle) > 0 {
+		data, err := ioutil.ReadFile(o.AdditionalTrustBundle)
 		if err != nil {
-			o.log.Error("Cannot read SSH public key file")
+			o.log.Error("Cannot read AdditionalTrustBundle file")
 			return "", err
 		}
-		sshPublicKey = strings.TrimSpace(string(data))
-		return sshPublicKey, nil
-	}
-
-	o.log.Error("Cannot determine SSH key to use")
-	return "", nil
-}
-
-func (o *Options) getSSHPrivateKey() (string, error) {
-	if len(o.SSHPrivateKeyFile) > 0 {
-		data, err := ioutil.ReadFile(o.SSHPrivateKeyFile)
-		if err != nil {
-			o.log.Error("Cannot read SSH private key file")
+		if err := validate.CABundle(string(data)); err != nil {
+			o.log.Error("AdditionalTrustBundle is not valid")
 			return "", err
 		}
-		sshPrivateKey := strings.TrimSpace(string(data))
-		return sshPrivateKey, nil
+		additionalTrustBundle := string(data)
+		return additionalTrustBundle, nil
 	}
-	o.log.Debug("No private SSH key file provided")
+	o.log.Debug("No AdditionalTrustBundle provided")
 	return "", nil
 }
 
@@ -780,6 +878,9 @@ func (o *Options) getManifestFileBytes() (map[string][]byte, error) {
 			fileData[file.Name()] = data
 		}
 	}
+	if o.SimulateBootstrapFailure {
+		fileData["failure-test.yaml"] = []byte(testFailureManifest)
+	}
 	return fileData, nil
 }
 
@@ -794,7 +895,7 @@ func (o *Options) configureImages(generator *clusterresource.Builder) (*hivev1.C
 			return nil, fmt.Errorf("specify either a release image or a release image source")
 		}
 		var err error
-		o.ReleaseImage, err = DetermineReleaseImageFromSource(o.ReleaseImageSource)
+		o.ReleaseImage, err = utils.DetermineReleaseImageFromSource(o.ReleaseImageSource)
 		if err != nil {
 			return nil, fmt.Errorf("cannot determine release image: %v", err)
 		}
@@ -820,6 +921,84 @@ func (o *Options) configureImages(generator *clusterresource.Builder) (*hivev1.C
 	return imageSet, nil
 }
 
+func (o *Options) generateSampleSyncSets() []runtime.Object {
+	var syncsets []runtime.Object
+	for i := range [10]int{} {
+		syncsets = append(syncsets, sampleSyncSet(fmt.Sprintf("%s-sample-syncset%d", o.Name, i), o.Namespace, o.Name))
+		syncsets = append(syncsets, sampleSelectorSyncSet(fmt.Sprintf("sample-selector-syncset%d", i), o.Name))
+	}
+	return syncsets
+}
+
+func sampleSyncSet(name, namespace, cdName string) *hivev1.SyncSet {
+	return &hivev1.SyncSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "SyncSet",
+			APIVersion: hivev1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: hivev1.SyncSetSpec{
+			ClusterDeploymentRefs: []corev1.LocalObjectReference{
+				{
+					Name: cdName,
+				},
+			},
+			SyncSetCommonSpec: hivev1.SyncSetCommonSpec{
+				ResourceApplyMode: hivev1.SyncResourceApplyMode,
+				Resources: []runtime.RawExtension{
+					{
+						Object: sampleCM(fmt.Sprintf("%s-configmap", name)),
+					},
+				},
+			},
+		},
+	}
+}
+
+func sampleSelectorSyncSet(name, cdName string) *hivev1.SelectorSyncSet {
+	return &hivev1.SelectorSyncSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "SelectorSyncSet",
+			APIVersion: hivev1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: hivev1.SelectorSyncSetSpec{
+			ClusterDeploymentSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"provisioner": "oplmgr"},
+			},
+			SyncSetCommonSpec: hivev1.SyncSetCommonSpec{
+				ResourceApplyMode: hivev1.SyncResourceApplyMode,
+				Resources: []runtime.RawExtension{
+					{
+						Object: sampleCM(fmt.Sprintf("%s-configmap", name)),
+					},
+				},
+			},
+		},
+	}
+}
+
+func sampleCM(name string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"foo": "bar",
+		},
+	}
+}
+
 func printObjects(objects []runtime.Object, scheme *runtime.Scheme, printer printers.ResourcePrinter) {
 	typeSetterPrinter := printers.NewTypeSetter(scheme).ToPrinter(printer)
 	switch len(objects) {
@@ -838,4 +1017,18 @@ func printObjects(objects []runtime.Object, scheme *runtime.Scheme, printer prin
 		meta.SetList(list, objects)
 		typeSetterPrinter.PrintObj(list, os.Stdout)
 	}
+}
+
+func init() {
+	rootCmd.AddCommand(NewCreateClusterCommand())
+
+	// Here you will define your flags and configuration settings.
+
+	// Cobra supports Persistent Flags which will work for this command
+	// and all subcommands, e.g.:
+	// provisionCmd.PersistentFlags().String("foo", "", "A help for foo")
+
+	// Cobra supports local flags which will only run when this command
+	// is called directly, e.g.:
+	// provisionCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

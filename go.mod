@@ -3,33 +3,29 @@ module github.com/redhat-openshift-partner-labs/oplmgr
 go 1.16
 
 require (
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/google/go-github/v33 v33.0.0
 	github.com/google/uuid v1.1.2
-	github.com/jonboulle/clockwork v0.1.0
-	github.com/json-iterator/go v1.1.10
-	github.com/modern-go/reflect2 v1.0.1
-	github.com/openshift/hive/apis v0.0.0-20210708232807-023f095eaf99
+	github.com/openshift/hive v1.1.8
+	github.com/openshift/hive/apis v0.0.0
 	github.com/openshift/installer v0.9.0-master.0.20210615235437-a5ddd2dd6c72
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
-	github.com/spf13/cobra v1.1.1
-	github.com/spf13/viper v1.7.1
+	github.com/spf13/cobra v1.2.1
+	github.com/spf13/viper v1.8.1
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	google.golang.org/api v0.33.0
-	gopkg.in/ini.v1 v1.61.0
+	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
+	google.golang.org/api v0.44.0
 	k8s.io/api v0.21.0-rc.0
 	k8s.io/apimachinery v0.21.0-rc.0
 	k8s.io/cli-runtime v0.21.0-rc.0
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/kubectl v0.20.0
-	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
-	sigs.k8s.io/controller-runtime v0.7.0
+	sigs.k8s.io/controller-runtime v0.8.3
 	sigs.k8s.io/kustomize/api v0.8.11 // indirect
 )
 
 replace github.com/openshift/api v3.9.1-0.20191111211345-a27ff30ebf09+incompatible => github.com/openshift/api v0.0.0-20210420151714-a3c8fa53e01b
+
+replace github.com/openshift/hive/apis v0.0.0 => github.com/openshift/hive/apis v0.0.0-20210708232807-023f095eaf99
 
 replace (
 	cloud.google.com/go => cloud.google.com/go v0.57.0
