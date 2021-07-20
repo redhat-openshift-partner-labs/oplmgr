@@ -1,0 +1,30 @@
+<h3>Welcome from OpenShift Partner Labs</h3>
+<p>Thank you for requesting lab access. Below you will find detailed information on accessing your cluster and more.</p>
+<p>Your OpenShift cluster is accessible at the following URL:
+<br />{{ .ConsoleURL }}
+<br />
+<br />Here are your login credentials:
+<br />
+<br />username: kubeadmin
+<br />password: {{ .KubeAdminLink }}
+<br />
+<br />You can also get your kubeconfig here: {{ .KubeConfigLink }}
+</p>
+<br />
+<p>The kubeadmin password and kubeconfig links will expire within 24 hours or after being read; whichever happens first.
+<br />We recommend clicking the Raw Text button if you want to copy and paste your credentials from the links.
+</p>
+<br />
+<p>NOTE: You must save your work and not rely on your OpenShift cluster to save critical data. You should incorporate best practices when it comes to backing up your data, checking code into version control, etc.</p>
+<br />
+<h4>Cluster Availability</h4>
+<p>Your cluster is available for eight hours each day. {{ .Timezone }}. With the exception of single day requests, clusters will sleep until the following eight hour period and will be shut down and deleted on the final day.</p>
+<p>SSH access via private/public keys is available on a case-by-case basis. You are able to access the physical nodes of your OpenShift cluster but this is not recommended. If you modify any node in such a way that the OpenShift environment is broken we are unable to recover your environment; a fresh install will be required.
+<br />
+<br />If you have your kubeconfig or you have used the Copy Login Command link you can run the following commands (example image below):
+<br />
+<br />oc get nodes
+<br />oc debug node/{your_node_here}
+</p>
+<br />
+<img width="500px" src="https://i.imgur.com/iLMIISb.png" alt="oc debug example"/>

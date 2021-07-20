@@ -1,0 +1,16 @@
+<h3>Console URL and kubeadmin</h3>
+<p>Below you will find detailed information on accessing your cluster.</p>
+<p>Your OpenShift cluster is accessible at the following URL:
+    <br/>{{ .ConsoleURL }}
+    <br/>
+    <br/>Here are your login credentials:
+    <br/>
+    <br/>username: kubeadmin
+    <br/>password: {{ .KubeAdminLink }}
+</p>
+<p>The kubeadmin password link above will expire within 24 hours or after being read; whichever happens first.
+    <br/>We recommend clicking the Raw Text button if you want to copy and paste your credentials from the links.
+</p>
+<br/>
+<p>NOTE: You must save your work and not rely on your OpenShift cluster to save critical data. You should incorporate
+    best practices when it comes to backing up your data, checking code into version control, etc.</p>
