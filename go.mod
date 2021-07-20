@@ -3,6 +3,7 @@ module github.com/redhat-openshift-partner-labs/oplmgr
 go 1.16
 
 require (
+	github.com/gobuffalo/envy v1.9.0
 	github.com/google/go-github/v33 v33.0.0
 	github.com/google/uuid v1.1.2
 	github.com/openshift/hive v1.1.8
@@ -12,6 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
+	github.com/xhit/go-simple-mail/v2 v2.10.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	google.golang.org/api v0.44.0
