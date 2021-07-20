@@ -23,7 +23,7 @@ var assetData embed.FS
 func init() {
 	// Load environment variables
 	err := envy.Load(".env"); if err != nil {
-		log.Printf("Unable to load environment variables: %v\n", err)
+		log.Printf("Unable to variables from .env: %v\n", err)
 	}
 }
 
