@@ -26,7 +26,7 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Version of oplmgr",
-	Long: `Version of oplmgr`,
+	Long:  `Version of oplmgr`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("oplmgr v0.1.0-beta")
 	},

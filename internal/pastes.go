@@ -197,7 +197,7 @@ func GenerateSinglePaste(bin string, contents map[string]string) map[string]stri
 		return map[string]string{}
 	}
 
-		config := Cfg{
+	config := Cfg{
 		Name:             "default",
 		Host:             bin,
 		Username:         "dev",

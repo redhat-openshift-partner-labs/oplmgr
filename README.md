@@ -2,21 +2,26 @@
 
 CLI application to work with OpenShift Partner Lab components.  
 <br />
+
 #### NOTE
+
 When using the email command you will need to provide some environment variables:
 
-You will need access to a privatebin host, we provide one by default, but you still need to set the environment variable.  
-PRIVATEBIN_HOST=https://bin.apps.eng.partner-lab.rhecoeng.com  
+You will need access to a privatebin host, we provide one by default, but you still need to set the environment
+variable.  
+PRIVATEBIN_HOST=https://bin.apps.eng.partner-lab.rhecoeng.com
 
 You will use the same kubeconfig but two different environment variables; make sure both are set.  
 OPENSHIFT_KUBECONFIG=$HOME/.kube/config  
-KUBECONFIG=$HOME/.kube/config 
+KUBECONFIG=$HOME/.kube/config
 
-You can use the same address for SMTP_USER and SMTP_FROM or not; this will be a configuration requirement known by you.  
+You can use the same address for SMTP_USER and SMTP_FROM or not; this will be a configuration requirement known by
+you.  
 SMTP_PASSWORD=mypassword  
 SMTP_USER=smtpuser@mydomain.com  
 SMTP_FROM=smtpemail@mydomain.com  
 SMTP_HOST=smtphost.mydomain.com
+
 ```
 Program to manipulate provisioning, sleep, wake, and deletion of clusters
 created using OpenShift Partner Labs. You will need the cluster_id and timezone

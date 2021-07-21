@@ -171,5 +171,4 @@ func Decode(src string) ([]byte, error) {
 	return DecodeAlphabet(src, BitcoinAlphabet)
 }
 
-
 // funcs for emails that do not have a current place

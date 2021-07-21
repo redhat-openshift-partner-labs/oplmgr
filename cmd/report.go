@@ -26,7 +26,7 @@ import (
 var reportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Generate various reports for OpenShift Partner Labs",
-	Long: ``,
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("report called")
 	},

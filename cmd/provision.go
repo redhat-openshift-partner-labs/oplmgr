@@ -102,13 +102,13 @@ obtained from a the following URL:
 https://amd64.ocp.releases.ci.openshift.org/api/v1/releasestream/4-stable/latest
 `
 const (
-	cloudAWS             = "aws"
-	cloudAzure           = "azure"
-	cloudGCP             = "gcp"
-	cloudOpenStack       = "openstack"
-	cloudVSphere         = "vsphere"
-	cloudOVirt           = "ovirt"
-	cloudIBM             = "ibm"
+	cloudAWS       = "aws"
+	cloudAzure     = "azure"
+	cloudGCP       = "gcp"
+	cloudOpenStack = "openstack"
+	cloudVSphere   = "vsphere"
+	cloudOVirt     = "ovirt"
+	cloudIBM       = "ibm"
 
 	testFailureManifest = `apiVersion: v1
 kind: NotARealSecret
@@ -133,8 +133,8 @@ var (
 
 // Options is the set of options to generate and apply a new cluster deployment
 type Options struct {
-	Name                              string
-	Namespace                         string
+	Name      string
+	Namespace string
 	//SSHPublicKeyFile                  string
 	//SSHPublicKey                      string
 	//SSHPrivateKeyFile                 string

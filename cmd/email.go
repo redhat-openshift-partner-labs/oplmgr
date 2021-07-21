@@ -67,11 +67,12 @@ func init() {
 	// emailCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func getClusterDeploymentInfo(clusterid string) (consoleurl string, timezone string, kubeadminlink *v1.Secret, kubeconfiglink *v1.Secret){
+func getClusterDeploymentInfo(clusterid string) (consoleurl string, timezone string, kubeadminlink *v1.Secret, kubeconfiglink *v1.Secret) {
 	cd := hivev1.ClusterDeployment{}
 
 	hiveclient := HiveClientK8sAuthenticate()
-	err := hiveclient.Get(context.Background(), types.NamespacedName{Namespace: "hive", Name: clusterid}, &cd); if err != nil {
+	err := hiveclient.Get(context.Background(), types.NamespacedName{Namespace: "hive", Name: clusterid}, &cd)
+	if err != nil {
 		log.Printf("Unable to get the cluster with id %v: %v\n", clusterid, err)
 	}
 
@@ -88,7 +89,6 @@ func getClusterDeploymentInfo(clusterid string) (consoleurl string, timezone str
 
 	return cd.Status.WebConsoleURL, cd.ObjectMeta.Labels["timezone"], kubeadminsecret, kubeconfigsecret
 }
-
 
 // emailCmd represents the email command
 var emailCmd = &cobra.Command{
@@ -121,8 +121,8 @@ listed above; welcome, credentials, kubeadmin, kubeconfig.`,
 		consoleurl, timezone, kubeadminsecret, kubeconfigsecret := getClusterDeploymentInfo(clusterid)
 		clusterinfo := GenerateMultiplePastes(os.Getenv("PRIVATEBIN_HOST"),
 			map[string]string{
-			"kubeadmin": string(kubeadminsecret.Data["password"]),
-			"kubeconfig": string(kubeconfigsecret.Data["raw-kubeconfig"]),
+				"kubeadmin":  string(kubeadminsecret.Data["password"]),
+				"kubeconfig": string(kubeconfigsecret.Data["raw-kubeconfig"]),
 			})
 		clusterinfo["consoleurl"] = consoleurl
 		clusterinfo["clusterid"] = octet
@@ -165,4 +165,3 @@ listed above; welcome, credentials, kubeadmin, kubeconfig.`,
 		}
 	},
 }
-
